@@ -30,5 +30,6 @@ async function doPrompt(promptType, promptMsg, promptChoices) {
 };
 
 async function queryUser() {
-
+  console.log("\n *** Welcome to Employee Tracker *** \n");
+  connection.end();
 };
