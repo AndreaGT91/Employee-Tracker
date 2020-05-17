@@ -4,6 +4,7 @@ const inquirer = require("inquirer");
 const cTable = require("console.table");
 // const art = require("ascii-art");
 const PORT = process.env.PORT || 3306;
+const tableMenu = ["Employee", "Role", "Department", "Back"];
 
 // create the connection information for the sql database
 const connection = mysql.createConnection({
@@ -34,8 +35,6 @@ async function doPrompt(promptType, promptMsg, promptChoices) {
 async function queryUser() {
   let keepGoing = true;
   const topMenu = ["View", "Add", "Update", "Remove", "Exit"];
-  const nextMenu = ["Employee", "Role", "Department", "Back"];
-  const empViewMenu = ["All Employees", "Employees By Department", "Employees By Manager", "Back"];
 
   console.log("\n *** Welcome to Employee Tracker *** \n");
 // console.log(art.style("Employee Tracker", "framed"));
@@ -46,10 +45,10 @@ async function queryUser() {
 
     // Make sure they didn't select 'Exit'
     if (action.data != topMenu[topMenu.length-1]) {
-      let table = await doPrompt("list", action.data + " which type of item?", nextMenu);
-      
+      let table = await doPrompt("list", action.data + " which type of item?", tableMenu);
+
       // Make sure they didn't select 'Back'
-      if (table.data != nextMenu[nextMenu.length-1]) {
+      if (table.data != tableMenu[tableMenu.length-1]) {
         switch (action.data) {
           case topMenu[0] :
             result = await viewItems(table.data);
@@ -74,7 +73,31 @@ async function queryUser() {
 };
 
 async function viewItems(table) {
-  return null
+  const viewMenu = ["Employees By ID", "Employees By Name", "Employees By Department", "Employees By Manager", "Back"];
+  let result = null;
+
+  switch (table) {
+    case tableMenu[0] : // Employee
+      let choice = await doPrompt('list', "Which employee report would you like?", viewMenu);
+      // Check to see if they picked 'Back'
+      if (choice.data != viewMenu[viewMenu.length-1]) {
+        switch(choice.data) {
+          case viewMenu[0] : // By ID
+            break;
+          case viewMenu[1] : // By Name
+            break;
+          case viewMenu[2] : // By Department
+            break;
+          case viewMenu[3] : // By Manager
+            break;
+        };
+      };
+    case tableMenu[1] : // Role
+      break;
+    case tableMenu[2] : // Department
+      break;
+  };
+  return result
 };
 
 async function addItems(table) {
