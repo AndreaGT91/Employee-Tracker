@@ -74,22 +74,49 @@ async function queryUser() {
 
 async function viewItems(table) {
   const viewMenu = ["Employees By ID", "Employees By Name", "Employees By Department", "Employees By Manager", "Back"];
+  const empQuery = `SELECT employee.id AS 'ID', 
+    employee.first_name AS 'First Name', 
+    employee.last_name AS 'Last Name', 
+    role.title AS 'Title', 
+    LPAD(CONCAT('$', FORMAT(role.salary, 2)), 12, ' ') AS 'Salary', 
+    department.name AS 'Department', 
+    IFNULL(CONCAT(manager.last_name, ', ', manager.first_name), '') AS 'Manager'
+    FROM employee
+    LEFT JOIN role ON employee.role_id=role.id
+    LEFT JOIN department ON role.department_id=department.id
+    LEFT JOIN employee AS manager ON employee.manager_id=manager.id`;
   let result = null;
 
   switch (table) {
     case tableMenu[0] : // Employee
-      let choice = await doPrompt('list', "Which employee report would you like?", viewMenu);
+      let choice = await doPrompt("list", "Which employee report would you like?", viewMenu);
       // Check to see if they picked 'Back'
       if (choice.data != viewMenu[viewMenu.length-1]) {
         switch(choice.data) {
-          case viewMenu[0] : // By ID
+          case viewMenu[0] : // By ID - default order
+            connection.query(empQuery, function(err,res) {
+              if (err) throw err;
+              console.table("Employees By ID", res);
+            });
             break;
           case viewMenu[1] : // By Name
-            break;
+            connection.query(empQuery + " ORDER BY employee.last_name, employee.first_name", function(err,res) {
+              if (err) throw err;
+              console.table("Employees By Name", res);
+            });
+          break;
           case viewMenu[2] : // By Department
-            break;
+            connection.query(empQuery + " ORDER BY department.name, employee.id", function(err,res) {
+              if (err) throw err;
+              console.table("Employees By Department", res);
+            });
+          break;
           case viewMenu[3] : // By Manager
-            break;
+            connection.query(empQuery + " ORDER BY manager.last_name, manager.first_name, employee.id", function(err,res) {
+              if (err) throw err;
+              console.table("Employees By Manager", res);
+            });
+          break;
         };
       };
     case tableMenu[1] : // Role
@@ -101,6 +128,10 @@ async function viewItems(table) {
 };
 
 async function addItems(table) {
+  connection.query("SELECT * FROM employee", function(err,res) {
+    if (err) throw err;
+    console.table('Employees', res);
+  });
   return null
 
 };
