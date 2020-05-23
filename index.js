@@ -102,7 +102,7 @@ async function viewItems(table) {
       let choice = await doPrompt("list", "Which employee report would you like?", viewMenu);
       // Check to see if they picked 'Back'
       if (choice.data != viewMenu[viewMenu.length-1]) {
-        switch(choice.data) {
+        switch (choice.data) {
           case viewMenu[0] : // By ID - default order
             connection.query(empQuery, function(err,res) {
               if (err) throw err;
@@ -146,12 +146,53 @@ async function viewItems(table) {
 };
 
 async function addItems(table) {
-  connection.query("SELECT * FROM employee", function(err,res) {
-    if (err) throw err;
-    console.table('Employees', res);
-  });
-  return null
 
+  function makeRoleList(roles) {
+    let roleList = [];
+    for (let i=0; i<roles.length; i++) {
+      roleList.push(`${roles[i].id}: ${roles[i].title} - ${roles[i].name} -> ` + 
+        `${roles[i].last_name}, ${roles[i].first_name} (${roles[i].manager_id})`);
+    };
+    return roleList;
+  };
+
+  const roleListQuery = `SELECT role.id, role.title, department.name, employee.last_name, employee.first_name, 
+    employee.id AS manager_id
+    FROM role
+    LEFT JOIN department ON role.department_id=department.id
+    LEFT JOIN employee ON department.manager_id=employee.id;`;
+
+  switch (table) {
+    case tableMenu[0] : // Add employee
+      let first_name = await doPrompt("input", "Employee's First Name?");
+      let last_name = await doPrompt("input", "Employee's Last Name?");
+      first_name = first_name.data.trim();
+      last_name = last_name.data.trim();
+      if ((first_name === "") && (last_name === "")) {
+        console.log("Employee must have either first or last name.");
+      }
+      else {
+        connection.query(roleListQuery, async function(err,res) {
+          if (err) throw err;
+          let roleList = makeRoleList(res);
+          let roleName = await doPrompt("list", "What role does the employee have?", roleList);
+          let role_id = parseInt(roleName.data.split(":")[0]);
+          let manager_id = parseInt(roleName.data.substring(roleName.data.indexOf("(") + 1, roleName.data.indexOf(")")));
+
+          connection.query("INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?);", 
+            [[first_name, last_name, role_id, manager_id]], function(err, result) {
+            if (err) throw err;
+            console.log("Added " + first_name + " " + last_name);
+          });
+        });
+      };
+      break;
+    case tableMenu[1] : // Add role
+      break;
+    case tableMenu[2] : // Add department
+      break;
+  };
+  return null
 };
 
 async function updateItems(table) {
