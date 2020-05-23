@@ -3,13 +3,12 @@ const mysql = require("mysql");
 const inquirer = require("inquirer");
 const cTable = require("console.table");
 // const art = require("ascii-art");
-const PORT = process.env.PORT || 3306;
 const tableMenu = ["Employee", "Role", "Department", "Back"];
 
 // create the connection information for the sql database
 const connection = mysql.createConnection({
   host: "localhost",
-  port: PORT,
+  port: 3306,
   user: "root",
   password: process.env.PASSWORD,
   database: "employee_trackerDB"
@@ -85,6 +84,17 @@ async function viewItems(table) {
     LEFT JOIN role ON employee.role_id=role.id
     LEFT JOIN department ON role.department_id=department.id
     LEFT JOIN employee AS manager ON employee.manager_id=manager.id`;
+  const roleQuery = `SELECT role.id AS 'ID',
+    role.title AS 'Title',
+    LPAD(CONCAT('$', FORMAT(role.salary, 2)), 12, ' ') AS 'Salary',
+    department.name AS 'Department'
+    FROM role
+    LEFT JOIN department ON role.department_id=department.id;`;
+  const deptQuery = `SELECT department.id AS 'ID',
+    department.name AS 'Name',
+    IFNULL(CONCAT(employee.last_name, ', ', employee.first_name), '') AS 'Manager'
+    FROM department
+    LEFT JOIN employee ON department.manager_id=employee.id;`;
   let result = null;
 
   switch (table) {
@@ -120,9 +130,17 @@ async function viewItems(table) {
         };
       };
     case tableMenu[1] : // Role
+      connection.query(roleQuery, function(err,res) {
+        if (err) throw err;
+        console.table("Employee Roles", res);
+      });
       break;
     case tableMenu[2] : // Department
-      break;
+    connection.query(deptQuery, function(err,res) {
+      if (err) throw err;
+      console.table("Departments", res);
+    });
+    break;
   };
   return result
 };
