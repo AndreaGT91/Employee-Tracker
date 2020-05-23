@@ -4,6 +4,9 @@ const inquirer = require("inquirer");
 const cTable = require("console.table");
 // const art = require("ascii-art");
 const tableMenu = ["Employee", "Role", "Department", "Back"];
+const util = require("util");
+
+const promptAsync = util.promisify(inquirer.prompt);
 
 // create the connection information for the sql database
 const connection = mysql.createConnection({
@@ -21,11 +24,22 @@ connection.connect(function(err) {
 });
 
 // Function that does actual prompting
-async function doPrompt(promptType, promptMsg, promptChoices) {
+async function doPromptAsync(promptType, promptMsg, promptChoices, promptDefault) {
+  return promptAsync([{
+    type: promptType,
+    name: "data",
+    message: promptMsg,
+    default: promptDefault,
+    choices: promptChoices
+  }]);
+};
+
+async function doPrompt(promptType, promptMsg, promptChoices, promptDefault) {
   return inquirer.prompt([{
     type: promptType,
     name: "data",
     message: promptMsg,
+    default: promptDefault,
     choices: promptChoices
   }]);
 };
@@ -145,36 +159,35 @@ async function viewItems(table) {
   return result
 };
 
+function makeRoleList(roles) {
+  let roleList = [];
+  for (let i=0; i<roles.length; i++) {
+    roleList.push(`${roles[i].id}: ${roles[i].title} - ${roles[i].name} -> ` + 
+      `${roles[i].last_name}, ${roles[i].first_name} (${roles[i].manager_id})`);
+  };
+  return roleList;
+};
+
+function makeDeptList(depts) {
+  let deptList = [];
+  for (let i=0; i<depts.length; i++) {
+    deptList.push(`${depts[i].id}: ${depts[i].name} -> ` + 
+      `${depts[i].last_name}, ${depts[i].first_name} (${depts[i].manager_id})`);
+  };
+  return deptList;
+};
+
+const roleListQuery = `SELECT role.id, role.title, department.name, employee.last_name, employee.first_name, 
+  employee.id AS manager_id
+  FROM role
+  LEFT JOIN department ON role.department_id=department.id
+  LEFT JOIN employee ON department.manager_id=employee.id;`;
+const deptListQuery = `SELECT department.id, department.name, employee.last_name, employee.first_name, 
+  employee.id AS manager_id
+  FROM department
+  LEFT JOIN employee ON department.manager_id=employee.id;`;
+
 async function addItems(table) {
-
-  function makeRoleList(roles) {
-    let roleList = [];
-    for (let i=0; i<roles.length; i++) {
-      roleList.push(`${roles[i].id}: ${roles[i].title} - ${roles[i].name} -> ` + 
-        `${roles[i].last_name}, ${roles[i].first_name} (${roles[i].manager_id})`);
-    };
-    return roleList;
-  };
-
-  function makeDeptList(depts) {
-    let deptList = [];
-    for (let i=0; i<depts.length; i++) {
-      deptList.push(`${depts[i].id}: ${depts[i].name} -> ` + 
-        `${depts[i].last_name}, ${depts[i].first_name} (${depts[i].manager_id})`);
-    };
-    return deptList;
-  };
-
-  const roleListQuery = `SELECT role.id, role.title, department.name, employee.last_name, employee.first_name, 
-    employee.id AS manager_id
-    FROM role
-    LEFT JOIN department ON role.department_id=department.id
-    LEFT JOIN employee ON department.manager_id=employee.id;`;
-  const deptListQuery = `SELECT department.id, department.name, employee.last_name, employee.first_name, 
-    employee.id AS manager_id
-    FROM department
-    LEFT JOIN employee ON department.manager_id=employee.id;`;
-
   switch (table) {
     case tableMenu[0] : // Add employee
       let first_name = await doPrompt("input", "Employee's First Name?");
@@ -252,23 +265,163 @@ async function addItems(table) {
 };
 
 async function updateItems(table) {
-  return null
+  switch (table) {
+    case tableMenu[0] : // Update employee
+      if (listEmployees()) {
+        let id = await doPrompt("number", "Enter employee ID to update:");
+        id = parseInt(id.data);
+        
+        if (!isNaN(id)) {
+          connection.query("SELECT * FROM employee WHERE id=?;", [id], async function(err,res) {
+            if (err) throw err;
+            let first_name = await doPrompt("input", "Employee's First Name?", null, res[0].first_name);
+            let last_name = await doPrompt("input", "Employee's Last Name?", null, res[0].last_name);
+            first_name = first_name.data.trim();
+            last_name = last_name.data.trim();
+            if ((first_name === "") && (last_name === "")) {
+              console.log("Employee must have either first or last name.");
+            }
+            else if (listRoles()) {
+              let role_id = await doPrompt("number", "Enter employee's role ID:", null, res[0].role_id);
+              role_id = parseInt(role_id.data);
+                
+              if (!isNaN(role_id) && listEmployees()) {
+                let manager_id = await doPrompt("number", "Enter employee's manager's ID:", null, res[0].manager_id);
+                manager_id = parseInt(manager_id.data);
 
+                if (!isNaN(manager_id)) {
+                  connection.query("UPDATE employee SET first_name=?, last_name=?, role_id=?, manager_id=? WHERE id=?;", 
+                    [first_name, last_name, role_id, manager_id, id], function(err, result) {
+                    if (err) throw err;
+                    console.log("Updated " + first_name + " " + last_name);
+                  });
+                }
+                else {
+                  console.log(manager_id + " is not a valid ID.");
+                };
+              }
+              else if (isNaN(role_id)) {
+                console.log(role_id + " is not a valid role ID.");
+              }
+              else {
+                console.log("Cannot retrieve list of possible managers at this time.");
+              };
+            }
+            else {
+              console.log("Cannot retrieve list of roles at this time.");
+            };
+          });
+        }
+        else {
+          console.log(id + " is not a valid employee ID.");
+        };
+      }
+      else {
+        console.log("Cannot retrieve list of employees at this time.");
+      };
+      break;
+    case tableMenu[1] : // Update role
+      if (listRoles()) {
+        let id = await doPrompt("number", "Enter role ID to update:");
+        id = parseInt(id.data);
+        
+        if (!isNaN(id)) {
+          connection.query("SELECT * FROM role WHERE id=?;", [id], async function(err,res) {
+            if (err) throw err;
+            let title = await doPrompt("input", "What is the role title?", null, res[0].title);
+            title = title.data.trim();
+            if (title === "") {
+              console.log("Role title cannot be blank.");
+            }
+            else {
+              let salary = await doPrompt("number", "What is the salary for this role?", null, res[0].salary);
+              salary = parseFloat(salary.data);
+              if (isNaN(salary)) {
+                salary = 0.0;
+              };
+
+              if (listDepts()) {
+                let department_id = await doPrompt("number", "What is the department ID for this role?", null, res[0].department_id);
+                department_id = parseInt(department_id.data);
+
+                if (!isNaN(department_id)) {
+                  connection.query("UPDATE role SET title=?, salary=?, department_id=? WHERE id=?;", 
+                    [title, salary, department_id, id], function(err, result) {
+                    if (err) throw err;
+                    console.log("Updated " + title);
+                  });
+                }
+                else {
+                  console.log(department_id + " is not a valid department ID.");
+                };
+              }
+              else {
+                console.log("Cannot retrieve list of departments at this time.");
+              };
+            };
+          });
+        }
+        else {
+          console.log(id + " is not a valid role ID.");
+        };
+      }
+      else {
+        console.log("Cannot retrieve list of roles at this time.");
+      };
+      break;
+    case tableMenu[2] : // Update department
+    if (listDepts()) {
+      let id = await doPrompt("number", "Enter department ID to update:");
+      id = parseInt(id.data);
+      
+      if (!isNaN(id)) {
+        connection.query("SELECT * FROM department WHERE id=?;", [id], async function(err,res) {
+          if (err) throw err;
+          let name = await doPrompt("input", "What is the department name?", null, res[0].name);
+          name = name.data.trim();
+          if (name === "") {
+            console.log("Department name cannot be blank.");
+          }
+          else if (listEmployees()) {
+            let manager_id = await doPrompt("number", "What is the manager ID for this role?", null, res[0].manager_id);
+            manager_id = parseInt(manager_id.data);
+
+            if (!isNaN(manager_id)) {
+              connection.query("UPDATE department SET name=?, manager_id=? WHERE id=?;", 
+                [name, manager_id, id], function(err, result) {
+                if (err) throw err;
+                console.log("Updated " + name);
+              });
+            }
+            else {
+              console.log(manager_id + " is not a valid manager ID.");
+            };
+          }
+          else {
+            console.log("Cannot retrieve list of employees at this time.");
+          };
+        });
+      }
+      else {
+        console.log(id + " is not a valid department ID.");
+      };
+    }
+    else {
+      console.log("Cannot retrieve list of departments at this time.");
+    };
+    break;
+  };
+  return null
 };
 
 async function removeItems(table) {
-  console.log('In removeItems');
   switch (table) {
     case tableMenu[0] : // Delete employee
-      console.log('Delete employee');
       if (listEmployees()) {
-        console.log('Displayed employees');
         let id = await doPrompt("number", "Enter employee ID to delete:");
         id = parseInt(id.data);
-        console.log('ID to delete: ' + id);
         
         if (!isNaN(id)) {
-          console.log('id is a number');
           connection.query("DELETE FROM employee WHERE id=?;", [id], function(err, result) {
             if (err) throw err;
             if (result.affectedRows > 0) {
@@ -346,7 +499,7 @@ async function listEmployees() {
   const empListQuery = `SELECT employee.id, employee.last_name, employee.first_name FROM employee 
     ORDER BY last_name, first_name;`;
 
-  connection.query(empListQuery, async function(err,res) {
+  connection.query(empListQuery, function(err,res) {
     if (err) throw err;
     console.table("Employees", res);
     return res;
