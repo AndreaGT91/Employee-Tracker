@@ -1,8 +1,8 @@
 require("dotenv").config();
+require("console.table");
 const mysql = require("mysql");
 const inquirer = require("inquirer");
-const cTable = require("console.table");
-// const art = require("ascii-art");
+const figlet = require('figlet');
 
 const tableMenu = ["Employee", "Role", "Department", "Back"];
 
@@ -37,39 +37,46 @@ async function queryUser() {
   let keepGoing = true;
   const topMenu = ["View", "Add", "Update", "Remove", "Exit"];
 
-  console.log("\n *** Welcome to Employee Tracker *** \n");
-// console.log(art.style("Employee Tracker", "framed"));
-
-  while (keepGoing) {
-    let result = null;
-    let action = await doPrompt("list", "What would you like to do?", topMenu);
-
-    // Make sure they didn't select 'Exit'
-    if (action.data != topMenu[topMenu.length-1]) {
-      let table = await doPrompt("list", action.data + " which type of item?", tableMenu);
-
-      // Make sure they didn't select 'Back'
-      if (table.data != tableMenu[tableMenu.length-1]) {
-        switch (action.data) {
-          case topMenu[0] :
-            result = await viewItems(table.data);
-            break;
-          case topMenu[1] :
-            result = await addItems(table.data);
-            break;
-          case topMenu[2] :
-            result = await updateItems(table.data);
-            break;
-          case topMenu[3] :
-            result = await removeItems(table.data);
-            break;
-        };
-      };
-    }
-    else {
-      keepGoing = false; // If they selected 'Exit', end loop
+  // Display app name as ascii art
+  figlet("Employee Tracker", async function(err, data) {
+    if (err) {
+      console.log("\n *** Welcome to Employee Tracker *** \n");
+      return;
     };
-  };
+    console.log(data, "\n");
+
+    while (keepGoing) {
+      let result = null;
+      let action = await doPrompt("list", "What would you like to do?", topMenu);
+
+      // Make sure they didn't select 'Exit'
+      if (action.data != topMenu[topMenu.length-1]) {
+        let table = await doPrompt("list", action.data + " which type of item?", tableMenu);
+
+        // Make sure they didn't select 'Back'
+        if (table.data != tableMenu[tableMenu.length-1]) {
+          switch (action.data) {
+            case topMenu[0] :
+              result = await viewItems(table.data);
+              break;
+            case topMenu[1] :
+              result = await addItems(table.data);
+              break;
+            case topMenu[2] :
+              result = await updateItems(table.data);
+              break;
+            case topMenu[3] :
+              result = await removeItems(table.data);
+              break;
+          };
+        };
+      }
+      else {
+        keepGoing = false; // If they selected 'Exit', end loop
+      };
+    };
+  });
+
   connection.end();
 };
 
