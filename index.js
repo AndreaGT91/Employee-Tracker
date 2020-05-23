@@ -3,10 +3,8 @@ const mysql = require("mysql");
 const inquirer = require("inquirer");
 const cTable = require("console.table");
 // const art = require("ascii-art");
-const tableMenu = ["Employee", "Role", "Department", "Back"];
-const util = require("util");
 
-const promptAsync = util.promisify(inquirer.prompt);
+const tableMenu = ["Employee", "Role", "Department", "Back"];
 
 // create the connection information for the sql database
 const connection = mysql.createConnection({
@@ -24,16 +22,6 @@ connection.connect(function(err) {
 });
 
 // Function that does actual prompting
-async function doPromptAsync(promptType, promptMsg, promptChoices, promptDefault) {
-  return promptAsync([{
-    type: promptType,
-    name: "data",
-    message: promptMsg,
-    default: promptDefault,
-    choices: promptChoices
-  }]);
-};
-
 async function doPrompt(promptType, promptMsg, promptChoices, promptDefault) {
   return inquirer.prompt([{
     type: promptType,
@@ -85,6 +73,7 @@ async function queryUser() {
   connection.end();
 };
 
+// Displays the various reports
 async function viewItems(table) {
   const viewMenu = ["Employees By ID", "Employees By Name", "Employees By Department", "Employees By Manager", "Back"];
   const empQuery = `SELECT employee.id AS 'ID', 
@@ -159,34 +148,7 @@ async function viewItems(table) {
   return result
 };
 
-function makeRoleList(roles) {
-  let roleList = [];
-  for (let i=0; i<roles.length; i++) {
-    roleList.push(`${roles[i].id}: ${roles[i].title} - ${roles[i].name} -> ` + 
-      `${roles[i].last_name}, ${roles[i].first_name} (${roles[i].manager_id})`);
-  };
-  return roleList;
-};
-
-function makeDeptList(depts) {
-  let deptList = [];
-  for (let i=0; i<depts.length; i++) {
-    deptList.push(`${depts[i].id}: ${depts[i].name} -> ` + 
-      `${depts[i].last_name}, ${depts[i].first_name} (${depts[i].manager_id})`);
-  };
-  return deptList;
-};
-
-const roleListQuery = `SELECT role.id, role.title, department.name, employee.last_name, employee.first_name, 
-  employee.id AS manager_id
-  FROM role
-  LEFT JOIN department ON role.department_id=department.id
-  LEFT JOIN employee ON department.manager_id=employee.id;`;
-const deptListQuery = `SELECT department.id, department.name, employee.last_name, employee.first_name, 
-  employee.id AS manager_id
-  FROM department
-  LEFT JOIN employee ON department.manager_id=employee.id;`;
-
+// Adds items to table
 async function addItems(table) {
   switch (table) {
     case tableMenu[0] : // Add employee
@@ -197,73 +159,99 @@ async function addItems(table) {
       if ((first_name === "") && (last_name === "")) {
         console.log("Employee must have either first or last name.");
       }
-      else {
-        connection.query(roleListQuery, async function(err,res) {
-          if (err) throw err;
-          let roleList = makeRoleList(res);
-          let roleName = await doPrompt("list", "What role does the employee have?", roleList);
-          let role_id = parseInt(roleName.data.split(":")[0]);
-          let manager_id = parseInt(roleName.data.substring(roleName.data.indexOf("(") + 1, roleName.data.indexOf(")")));
+      else if (listRoles()) {
+        let role_id = await doPrompt("number", "Enter employee's role ID:");
+        role_id = parseInt(role_id.data);
+          
+        if (!isNaN(role_id) && listEmployees()) {
+          let manager_id = await doPrompt("number", "Enter employee's manager's ID:");
+          manager_id = parseInt(manager_id.data);
 
-          connection.query("INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?);", 
-            [[first_name, last_name, role_id, manager_id]], function(err, result) {
-            if (err) throw err;
-            console.log("Added " + first_name + " " + last_name);
-          });
-        });
+          if (!isNaN(manager_id)) {
+            connection.query("INSERT INTO employee (first_name, last_name, role_id, manager_id) VALUES (?, ?, ?, ?);", 
+              [first_name, last_name, role_id, manager_id], function(err, result) {
+              if (err) throw err;
+              console.log("Added " + first_name + " " + last_name);
+            });
+          }
+          else {
+            console.log(manager_id + " is not a valid ID.");
+          };
+        }
+        else if (isNaN(role_id)) {
+          console.log(role_id + " is not a valid role ID.");
+        }
+        else {
+          console.log("Cannot retrieve list of possible managers at this time.");
+        };
+      }
+      else {
+        console.log("Cannot retrieve list of roles at this time.");
       };
       break;
     case tableMenu[1] : // Add role
-      let roleTitle = await doPrompt("input", "What is the role title?");
-      roleTitle = roleTitle.data.trim();
-      if (roleTitle === "") {
+      let title = await doPrompt("input", "What is the role title?");
+      title = title.data.trim();
+      if (title === "") {
         console.log("Role title cannot be blank.");
       }
       else {
-        let roleSalary = await doPrompt("number", "What is the salary for this role?");
-        roleSalary = parseFloat(roleSalary.data);
-        if (isNaN(roleSalary)) {
-          roleSalary = 0.0;
+        let salary = await doPrompt("number", "What is the salary for this role?");
+        salary = parseFloat(salary.data);
+        if (isNaN(salary)) {
+          salary = 0.0;
         };
 
-        connection.query(deptListQuery, async function(err,res) {
-          if (err) throw err;
-          let deptList = makeDeptList(res);
-          let deptName = await doPrompt("list", "Which department does this role belong to?", deptList);
-          let department_id = parseInt(deptName.data.split(":")[0]);
+        if (listDepts()) {
+          let department_id = await doPrompt("number", "What is the department ID for this role?");
+          department_id = parseInt(department_id.data);
 
-          connection.query("INSERT INTO role (title, salary, department_id) VALUES (?);", 
-            [[roleTitle, roleSalary, department_id]], function(err, result) {
+          if (!isNaN(department_id)) {
+            connection.query("INSERT INTO role (title, salary, department_id) VALUES (?, ?, ?);", 
+            [title, salary, department_id], function(err, result) {
             if (err) throw err;
-            console.log("Added " + roleTitle);
+            console.log("Added " + title);
           });
-        });
+          }
+          else {
+            console.log(department_id + " is not a valid department ID.");
+          };
+        }
+        else {
+          console.log("Cannot retrieve list of departments at this time.");
+        };
       };
       break;
     case tableMenu[2] : // Add department
-      let deptName = await doPrompt("input", "What is the department name?");
-      deptName = deptName.data.trim();
-      if (deptName === "") {
+      let name = await doPrompt("input", "What is the department name?");
+      name = name.data.trim();
+      if (name === "") {
         console.log("Department name cannot be blank.");
       }
-      else {
-        if (listEmployees()) {
-          let manager_id = await doPrompt("number", "Enter employee ID of manager for this department:");
-          
-          if (!isNaN(manager_id)) {
-            connection.query("INSERT INTO department (manager_id, name) VALUES (?);", 
-              [[manager_id, deptName]], function(err, result) {
-              if (err) throw err;
-              console.log("Added " + deptName);
-            });
-          };
+      else if (listEmployees()) {
+        let manager_id = await doPrompt("number", "Enter employee ID of manager for this department:");
+        manager_id = parseInt(manager_id.data);
+        
+        if (!isNaN(manager_id)) {
+          connection.query("INSERT INTO department (manager_id, name) VALUES (?, ?);", 
+            [manager_id, name], function(err, result) {
+            if (err) throw err;
+            console.log("Added " + name);
+          });
+        }
+        else {
+          console.log(manager_id + " is not a valid employee ID.");
         };
+      }
+      else {
+        console.log("Cannot retrieve list of possible managers at this time.");
       };
       break;
   };
   return null
 };
 
+// Updates items in tables
 async function updateItems(table) {
   switch (table) {
     case tableMenu[0] : // Update employee
@@ -414,6 +402,7 @@ async function updateItems(table) {
   return null
 };
 
+// Deletes items from tables
 async function removeItems(table) {
   switch (table) {
     case tableMenu[0] : // Delete employee
@@ -495,17 +484,19 @@ async function removeItems(table) {
   return null
 };
 
+// Displays list of employees for selection purposes
 async function listEmployees() {
   const empListQuery = `SELECT employee.id, employee.last_name, employee.first_name FROM employee 
     ORDER BY last_name, first_name;`;
 
   connection.query(empListQuery, function(err,res) {
     if (err) throw err;
-    console.table("Employees", res);
+    console.table("\n Employees", res);
     return res;
   });
 };
 
+// Displays list of roles for selection purposes
 async function listRoles() {
   const roleListQuery = `SELECT role.id, department.name, role.title, employee.last_name, employee.first_name
     FROM role
@@ -515,11 +506,12 @@ async function listRoles() {
 
   connection.query(roleListQuery, async function(err,res) {
     if (err) throw err;
-    console.table("Roles", res);
+    console.table("\n Roles", res);
     return res;
   });
 };
 
+// Displays list of departments for selection purposes
 async function listDepts() {
   const deptListQuery = `SELECT department.id AS 'ID',
     department.name AS 'Name',
@@ -529,7 +521,7 @@ async function listDepts() {
 
   connection.query(deptListQuery, async function(err,res) {
     if (err) throw err;
-    console.table("Departments", res);
+    console.table("\n Departments", res);
     return res;
   });
 };
