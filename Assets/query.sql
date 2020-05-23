@@ -37,3 +37,13 @@ SELECT role.id, role.title, department.name, employee.last_name, employee.first_
 FROM role
 LEFT JOIN department ON role.department_id=department.id
 LEFT JOIN employee ON department.manager_id=employee.id;
+
+-- Query to get list of departments for 'add role'
+SELECT department.id, department.name, employee.last_name, employee.first_name, employee.id AS manager_id
+FROM department
+LEFT JOIN employee ON department.manager_id=employee.id;
+
+-- Query to get list of managers for 'add department'
+SELECT id, last_name, first_name
+FROM employee
+ORDER BY last_name, first_name;

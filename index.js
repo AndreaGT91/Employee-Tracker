@@ -156,11 +156,34 @@ async function addItems(table) {
     return roleList;
   };
 
+  function makeDeptList(depts) {
+    let deptList = [];
+    for (let i=0; i<depts.length; i++) {
+      deptList.push(`${depts[i].id}: ${depts[i].name} -> ` + 
+        `${depts[i].last_name}, ${depts[i].first_name} (${depts[i].manager_id})`);
+    };
+    return deptList;
+  };
+
+  function makeEmpList(emps) {
+    let empList = [];
+    for (let i=0; i<emps.length; i++) {
+      empList.push(`${emps[i].id}: ${emps[i].last_name}, ${emps[i].first_name}`);
+    };
+    return empList;
+  };
+
   const roleListQuery = `SELECT role.id, role.title, department.name, employee.last_name, employee.first_name, 
     employee.id AS manager_id
     FROM role
     LEFT JOIN department ON role.department_id=department.id
     LEFT JOIN employee ON department.manager_id=employee.id;`;
+  const deptListQuery = `SELECT department.id, department.name, employee.last_name, employee.first_name, 
+    employee.id AS manager_id
+    FROM department
+    LEFT JOIN employee ON department.manager_id=employee.id;`;
+  const empListQuery = `SELECT employee.id, employee.last_name, employee.first_name FROM employee 
+    ORDER BY last_name, first_name;`;
 
   switch (table) {
     case tableMenu[0] : // Add employee
@@ -188,9 +211,53 @@ async function addItems(table) {
       };
       break;
     case tableMenu[1] : // Add role
+      let roleTitle = await doPrompt("input", "What is the role title?");
+      roleTitle = roleTitle.data.trim();
+      if (roleTitle === "") {
+        console.log("Role title cannot be blank.");
+      }
+      else {
+        let roleSalary = await doPrompt("number", "What is the salary for this role?");
+        roleSalary = parseFloat(roleSalary.data);
+        if (isNaN(roleSalary)) {
+          roleSalary = 0.0;
+        };
+
+        connection.query(deptListQuery, async function(err,res) {
+          if (err) throw err;
+          let deptList = makeDeptList(res);
+          let deptName = await doPrompt("list", "Which department does this role belong to?", deptList);
+          let department_id = parseInt(deptName.data.split(":")[0]);
+
+          connection.query("INSERT INTO role (title, salary, department_id) VALUES (?);", 
+            [[roleTitle, roleSalary, department_id]], function(err, result) {
+            if (err) throw err;
+            console.log("Added " + roleTitle);
+          });
+        });
+      };
       break;
     case tableMenu[2] : // Add department
-      break;
+      let deptName = await doPrompt("input", "What is the department name?");
+      deptName = deptName.data.trim();
+      if (deptName === "") {
+        console.log("Department name cannot be blank.");
+      }
+      else {
+        connection.query(empListQuery, async function(err,res) {
+          if (err) throw err;
+          let empList = makeEmpList(res);
+          let empName = await doPrompt("list", "Which employee is the manager for this department?", empList);
+          let manager_id = parseInt(empName.data.split(":")[0]);
+
+          connection.query("INSERT INTO department (manager_id, name) VALUES (?);", 
+            [[manager_id, deptName]], function(err, result) {
+            if (err) throw err;
+            console.log("Added " + deptName);
+          });
+        });
+      };
+    break;
   };
   return null
 };
