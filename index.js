@@ -165,14 +165,6 @@ async function addItems(table) {
     return deptList;
   };
 
-  function makeEmpList(emps) {
-    let empList = [];
-    for (let i=0; i<emps.length; i++) {
-      empList.push(`${emps[i].id}: ${emps[i].last_name}, ${emps[i].first_name}`);
-    };
-    return empList;
-  };
-
   const roleListQuery = `SELECT role.id, role.title, department.name, employee.last_name, employee.first_name, 
     employee.id AS manager_id
     FROM role
@@ -182,8 +174,6 @@ async function addItems(table) {
     employee.id AS manager_id
     FROM department
     LEFT JOIN employee ON department.manager_id=employee.id;`;
-  const empListQuery = `SELECT employee.id, employee.last_name, employee.first_name FROM employee 
-    ORDER BY last_name, first_name;`;
 
   switch (table) {
     case tableMenu[0] : // Add employee
@@ -244,20 +234,19 @@ async function addItems(table) {
         console.log("Department name cannot be blank.");
       }
       else {
-        connection.query(empListQuery, async function(err,res) {
-          if (err) throw err;
-          let empList = makeEmpList(res);
-          let empName = await doPrompt("list", "Which employee is the manager for this department?", empList);
-          let manager_id = parseInt(empName.data.split(":")[0]);
-
-          connection.query("INSERT INTO department (manager_id, name) VALUES (?);", 
-            [[manager_id, deptName]], function(err, result) {
-            if (err) throw err;
-            console.log("Added " + deptName);
-          });
-        });
+        if (listEmployees()) {
+          let manager_id = await doPrompt("number", "Enter employee ID of manager for this department:");
+          
+          if (!isNaN(manager_id)) {
+            connection.query("INSERT INTO department (manager_id, name) VALUES (?);", 
+              [[manager_id, deptName]], function(err, result) {
+              if (err) throw err;
+              console.log("Added " + deptName);
+            });
+          };
+        };
       };
-    break;
+      break;
   };
   return null
 };
@@ -268,6 +257,126 @@ async function updateItems(table) {
 };
 
 async function removeItems(table) {
+  console.log('In removeItems');
+  switch (table) {
+    case tableMenu[0] : // Delete employee
+      console.log('Delete employee');
+      if (listEmployees()) {
+        console.log('Displayed employees');
+        let id = await doPrompt("number", "Enter employee ID to delete:");
+        id = parseInt(id.data);
+        console.log('ID to delete: ' + id);
+        
+        if (!isNaN(id)) {
+          console.log('id is a number');
+          connection.query("DELETE FROM employee WHERE id=?;", [id], function(err, result) {
+            if (err) throw err;
+            if (result.affectedRows > 0) {
+              console.log("Deleted employee " + id);
+              // TODO: error check that this employee was not a manager
+            }
+            else {
+              console.log("Employee ID " + id + " not found.");
+            };
+          });
+        }
+        else {
+          console.log(id + " is not a valid employee ID.");
+        };
+      }
+      else {
+        console.log("Unable to retrieve list of employees at this time.");
+      };
+      break;
+    case tableMenu[1] : // Delete role
+      if (listRoles()) {
+        let id = await doPrompt("number", "Enter role ID to delete:");
+        id = parseInt(id.data);
+        
+        if (!isNaN(id)) {
+          connection.query("DELETE FROM role WHERE id=?;", [id], function(err, result) {
+            if (err) throw err;
+            if (result.affectedRows > 0) {
+              console.log("Deleted role " + id);
+              // TODO: error check that this role not in use
+            }
+            else {
+              console.log("Role ID " + id + " not found.");
+            };
+          });
+        }
+        else {
+          console.log(id + " is not a valid role ID.");
+        };
+      }
+      else {
+        console.log("Unable to retrieve list of roles at this time.");
+      };
+      break;
+    case tableMenu[2] : // Delete department
+      if (listDepts()) {
+        let id = await doPrompt("number", "Enter department ID to delete:");
+        id = parseInt(id.data);
+        
+        if (!isNaN(id)) {
+          connection.query("DELETE FROM department WHERE id=?;", [id], function(err, result) {
+            if (err) throw err;
+            if (result.affectedRows > 0) {
+              console.log("Deleted department " + id);
+              // TODO: error check that this department not in use
+            }
+            else {
+              console.log("Department ID " + id + " not found.");
+            };
+          });
+        }
+        else {
+          console.log(id + " is not a valid department ID.");
+        };
+      }
+      else {
+        console.log("Unable to retrieve list of departments at this time.");
+      };
+      break;
+  };
   return null
+};
 
+async function listEmployees() {
+  const empListQuery = `SELECT employee.id, employee.last_name, employee.first_name FROM employee 
+    ORDER BY last_name, first_name;`;
+
+  connection.query(empListQuery, async function(err,res) {
+    if (err) throw err;
+    console.table("Employees", res);
+    return res;
+  });
+};
+
+async function listRoles() {
+  const roleListQuery = `SELECT role.id, department.name, role.title, employee.last_name, employee.first_name
+    FROM role
+    LEFT JOIN department ON role.department_id=department.id
+    LEFT JOIN employee ON department.manager_id=employee.id
+    ORDER BY department.name, role.title;`;
+
+  connection.query(roleListQuery, async function(err,res) {
+    if (err) throw err;
+    console.table("Roles", res);
+    return res;
+  });
+};
+
+async function listDepts() {
+  const deptListQuery = `SELECT department.id AS 'ID',
+    department.name AS 'Name',
+    IFNULL(CONCAT(employee.last_name, ', ', employee.first_name), '') AS 'Manager'
+    FROM department
+    LEFT JOIN employee ON department.manager_id=employee.id;`;
+
+  connection.query(deptListQuery, async function(err,res) {
+    if (err) throw err;
+    console.table("Departments", res);
+    return res;
+  });
 };
