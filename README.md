@@ -1,6 +1,21 @@
 # Employee-Tracker
 Allows non-developers to manage a company's employees
 
+## Installation 
+ `npm install` 
+
+## GitHub Repository
+[github.com/AndreaGT91/Employee-Tracker](https://github.com/AndreaGT91/Employee-Tracker)
+
+## Usage 
+ `node index.js`   
+
+## Questions 
+ ![Andrea Bentley](https://avatars2.githubusercontent.com/u/58275699?v=4&s=48)  Andrea Bentley  (AndreaGT91)     
+[andrea@bentleytech.com](mailto:andrea@bentleytech.com)
+
+
+## Assignment:
 # Unit 12 MySQL Homework: Employee Tracker
 
 Developers are often tasked with creating interfaces that make it easy for non-developers to view and interact with information stored in databases. Often these interfaces are known as **C**ontent **M**anagement **S**ystems. In this homework assignment, your challenge is to architect and build a solution for managing a company's employees using node, inquirer, and MySQL.
