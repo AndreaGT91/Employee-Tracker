@@ -75,9 +75,9 @@ async function queryUser() {
         keepGoing = false; // If they selected 'Exit', end loop
       };
     };
-  });
 
-  connection.end();
+    connection.end();
+  });
 };
 
 // Displays the various reports
@@ -114,41 +114,42 @@ async function viewItems(table) {
       if (choice.data != viewMenu[viewMenu.length-1]) {
         switch (choice.data) {
           case viewMenu[0] : // By ID - default order
-            connection.query(empQuery, function(err,res) {
+            connection.query(empQuery + ";", function(err,res) {
               if (err) throw err;
-              console.table("Employees By ID", res);
+              console.table("\n Employees By ID", res);
             });
             break;
           case viewMenu[1] : // By Name
-            connection.query(empQuery + " ORDER BY employee.last_name, employee.first_name", function(err,res) {
+            connection.query(empQuery + " ORDER BY employee.last_name, employee.first_name;", function(err,res) {
               if (err) throw err;
-              console.table("Employees By Name", res);
+              console.table("\n Employees By Name", res);
             });
           break;
           case viewMenu[2] : // By Department
-            connection.query(empQuery + " ORDER BY department.name, employee.id", function(err,res) {
+            connection.query(empQuery + " ORDER BY department.name, employee.id;", function(err,res) {
               if (err) throw err;
-              console.table("Employees By Department", res);
+              console.table("\n Employees By Department", res);
             });
           break;
           case viewMenu[3] : // By Manager
-            connection.query(empQuery + " ORDER BY manager.last_name, manager.first_name, employee.id", function(err,res) {
+            connection.query(empQuery + " ORDER BY manager.last_name, manager.first_name, employee.id;", function(err,res) {
               if (err) throw err;
-              console.table("Employees By Manager", res);
+              console.table("\n Employees By Manager", res);
             });
           break;
         };
       };
+      break;
     case tableMenu[1] : // Role
       connection.query(roleQuery, function(err,res) {
         if (err) throw err;
-        console.table("Employee Roles", res);
+        console.table("\n Employee Roles", res);
       });
       break;
     case tableMenu[2] : // Department
     connection.query(deptQuery, function(err,res) {
       if (err) throw err;
-      console.table("Departments", res);
+      console.table("\n Departments", res);
     });
     break;
   };
