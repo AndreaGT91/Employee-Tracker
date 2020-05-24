@@ -6,6 +6,45 @@ const figlet = require('figlet');
 
 const tableMenu = ["Employee", "Role", "Department", "Back"];
 
+// Query to display all employee information
+const empQuery = `SELECT employee.id AS 'ID', 
+    employee.first_name AS 'First Name', 
+    employee.last_name AS 'Last Name', 
+    role.title AS 'Title', 
+    LPAD(CONCAT('$', FORMAT(role.salary, 2)), 12, ' ') AS 'Salary', 
+    department.name AS 'Department', 
+    IFNULL(CONCAT(manager.last_name, ', ', manager.first_name), '') AS 'Manager'
+  FROM employee
+  LEFT JOIN role ON employee.role_id=role.id
+  LEFT JOIN department ON role.department_id=department.id
+  LEFT JOIN employee AS manager ON employee.manager_id=manager.id`;
+const empQueryID = empQuery + ` ORDER BY employee.id;`;
+const empQueryName = empQuery + ` ORDER BY employee.last_name, employee.first_name;`;
+const empQueryDept = empQuery + ` ORDER BY department.name, employee.id;`;
+const empQueryManager = empQuery + ` ORDER BY manager.last_name, manager.first_name, employee.id;`;
+
+// Query to get list of employees, just names
+const empListQuery = `SELECT employee.id AS 'ID', employee.last_name AS 'Last Name', 
+    employee.first_name AS 'First Name' 
+  FROM employee 
+  ORDER BY last_name, first_name;`;
+
+// Query to display all roles
+const roleQuery = `SELECT role.id AS 'ID', department.name AS 'Department', role.title AS 'Title', 
+    LPAD(CONCAT('$', FORMAT(role.salary, 2)), 12, ' ') AS 'Salary',
+    IFNULL(CONCAT(employee.last_name, ', ', employee.first_name), '') AS 'Manager'
+  FROM role
+  LEFT JOIN department ON role.department_id=department.id
+  LEFT JOIN employee ON department.manager_id=employee.id
+  ORDER BY department.name, role.title;`;
+
+//  Query to display all departments
+const deptQuery = `SELECT department.id AS 'ID', department.name AS 'Name',
+    IFNULL(CONCAT(employee.last_name, ', ', employee.first_name), '') AS 'Manager'
+  FROM department
+  LEFT JOIN employee ON department.manager_id=employee.id
+  ORDER BY department.name;`;
+  
 // create the connection information for the sql database
 const connection = mysql.createConnection({
   host: "localhost",
@@ -34,8 +73,9 @@ async function doPrompt(promptType, promptMsg, promptChoices, promptDefault) {
 
 // Main function that controls flow
 async function queryUser() {
-  let keepGoing = true;
   const topMenu = ["View", "Add", "Update", "Remove", "Exit"];
+  let result = null;
+  let keepGoing = true;
 
   // Display app name as ascii art
   figlet("Employee Tracker", async function(err, data) {
@@ -68,7 +108,7 @@ async function queryUser() {
             case topMenu[3] :
               result = await removeItems(table.data);
               break;
-          };
+          }; // No need for default - do nothing if they select 'Back'
         };
       }
       else {
@@ -76,35 +116,14 @@ async function queryUser() {
       };
     };
 
-    connection.end();
+    connection.end(); // Shut down database connection on exit
   });
+  return result;
 };
 
 // Displays the various reports
 async function viewItems(table) {
   const viewMenu = ["Employees By ID", "Employees By Name", "Employees By Department", "Employees By Manager", "Back"];
-  const empQuery = `SELECT employee.id AS 'ID', 
-    employee.first_name AS 'First Name', 
-    employee.last_name AS 'Last Name', 
-    role.title AS 'Title', 
-    LPAD(CONCAT('$', FORMAT(role.salary, 2)), 12, ' ') AS 'Salary', 
-    department.name AS 'Department', 
-    IFNULL(CONCAT(manager.last_name, ', ', manager.first_name), '') AS 'Manager'
-    FROM employee
-    LEFT JOIN role ON employee.role_id=role.id
-    LEFT JOIN department ON role.department_id=department.id
-    LEFT JOIN employee AS manager ON employee.manager_id=manager.id`;
-  const roleQuery = `SELECT role.id AS 'ID',
-    role.title AS 'Title',
-    LPAD(CONCAT('$', FORMAT(role.salary, 2)), 12, ' ') AS 'Salary',
-    department.name AS 'Department'
-    FROM role
-    LEFT JOIN department ON role.department_id=department.id;`;
-  const deptQuery = `SELECT department.id AS 'ID',
-    department.name AS 'Name',
-    IFNULL(CONCAT(employee.last_name, ', ', employee.first_name), '') AS 'Manager'
-    FROM department
-    LEFT JOIN employee ON department.manager_id=employee.id;`;
   let result = null;
 
   switch (table) {
@@ -114,49 +133,31 @@ async function viewItems(table) {
       if (choice.data != viewMenu[viewMenu.length-1]) {
         switch (choice.data) {
           case viewMenu[0] : // By ID - default order
-            connection.query(empQuery + ";", function(err,res) {
-              if (err) throw err;
-              console.table("\n Employees By ID", res);
-            });
+            result = listEmployees("By ID", empQueryID);
             break;
           case viewMenu[1] : // By Name
-            connection.query(empQuery + " ORDER BY employee.last_name, employee.first_name;", function(err,res) {
-              if (err) throw err;
-              console.table("\n Employees By Name", res);
-            });
-          break;
+            result = listEmployees("By Name", empQueryName);
+            break;
           case viewMenu[2] : // By Department
-            connection.query(empQuery + " ORDER BY department.name, employee.id;", function(err,res) {
-              if (err) throw err;
-              console.table("\n Employees By Department", res);
-            });
-          break;
+            result = listEmployees("By Department", empQueryDept);
+            break;
           case viewMenu[3] : // By Manager
-            connection.query(empQuery + " ORDER BY manager.last_name, manager.first_name, employee.id;", function(err,res) {
-              if (err) throw err;
-              console.table("\n Employees By Manager", res);
-            });
-          break;
-        };
+            result = listEmployees("By Manager", empQueryManager);  
+            break;
+        }; // No need for default - do nothing if selected 'Back'
       };
       break;
     case tableMenu[1] : // Role
-      connection.query(roleQuery, function(err,res) {
-        if (err) throw err;
-        console.table("\n Employee Roles", res);
-      });
+      result = listRoles();
       break;
     case tableMenu[2] : // Department
-    connection.query(deptQuery, function(err,res) {
-      if (err) throw err;
-      console.table("\n Departments", res);
-    });
-    break;
-  };
+      result = listDepts();
+      break;
+  };  // No need for default - do nothing if selected 'Back'
   return result
 };
 
-// Adds items to table
+// Adds items to tables
 async function addItems(table) {
   switch (table) {
     case tableMenu[0] : // Add employee
@@ -164,6 +165,7 @@ async function addItems(table) {
       let last_name = await doPrompt("input", "Employee's Last Name?");
       first_name = first_name.data.trim();
       last_name = last_name.data.trim();
+
       if ((first_name === "") && (last_name === "")) {
         console.log("Employee must have either first or last name.");
       }
@@ -171,7 +173,7 @@ async function addItems(table) {
         let role_id = await doPrompt("number", "Enter employee's role ID:");
         role_id = parseInt(role_id.data);
           
-        if (!isNaN(role_id) && listEmployees()) {
+        if (!isNaN(role_id) && listEmployees("", empListQuery)) {
           let manager_id = await doPrompt("number", "Enter employee's manager's ID:");
           manager_id = parseInt(manager_id.data);
 
@@ -236,7 +238,7 @@ async function addItems(table) {
       if (name === "") {
         console.log("Department name cannot be blank.");
       }
-      else if (listEmployees()) {
+      else if (listEmployees("", empListQuery)) {
         let manager_id = await doPrompt("number", "Enter employee ID of manager for this department:");
         manager_id = parseInt(manager_id.data);
         
@@ -255,7 +257,7 @@ async function addItems(table) {
         console.log("Cannot retrieve list of possible managers at this time.");
       };
       break;
-  };
+  };  // No need for default - do nothing if selected 'Back'
   return null
 };
 
@@ -263,7 +265,7 @@ async function addItems(table) {
 async function updateItems(table) {
   switch (table) {
     case tableMenu[0] : // Update employee
-      if (listEmployees()) {
+      if (listEmployees("", empListQuery)) {
         let id = await doPrompt("number", "Enter employee ID to update:");
         id = parseInt(id.data);
         
@@ -281,7 +283,7 @@ async function updateItems(table) {
               let role_id = await doPrompt("number", "Enter employee's role ID:", null, res[0].role_id);
               role_id = parseInt(role_id.data);
                 
-              if (!isNaN(role_id) && listEmployees()) {
+              if (!isNaN(role_id) && listEmployees("", empListQuery)) {
                 let manager_id = await doPrompt("number", "Enter employee's manager's ID:", null, res[0].manager_id);
                 manager_id = parseInt(manager_id.data);
 
@@ -366,117 +368,35 @@ async function updateItems(table) {
       };
       break;
     case tableMenu[2] : // Update department
-    if (listDepts()) {
-      let id = await doPrompt("number", "Enter department ID to update:");
-      id = parseInt(id.data);
-      
-      if (!isNaN(id)) {
-        connection.query("SELECT * FROM department WHERE id=?;", [id], async function(err,res) {
-          if (err) throw err;
-          let name = await doPrompt("input", "What is the department name?", null, res[0].name);
-          name = name.data.trim();
-          if (name === "") {
-            console.log("Department name cannot be blank.");
-          }
-          else if (listEmployees()) {
-            let manager_id = await doPrompt("number", "What is the manager ID for this role?", null, res[0].manager_id);
-            manager_id = parseInt(manager_id.data);
-
-            if (!isNaN(manager_id)) {
-              connection.query("UPDATE department SET name=?, manager_id=? WHERE id=?;", 
-                [name, manager_id, id], function(err, result) {
-                if (err) throw err;
-                console.log("Updated " + name);
-              });
-            }
-            else {
-              console.log(manager_id + " is not a valid manager ID.");
-            };
-          }
-          else {
-            console.log("Cannot retrieve list of employees at this time.");
-          };
-        });
-      }
-      else {
-        console.log(id + " is not a valid department ID.");
-      };
-    }
-    else {
-      console.log("Cannot retrieve list of departments at this time.");
-    };
-    break;
-  };
-  return null
-};
-
-// Deletes items from tables
-async function removeItems(table) {
-  switch (table) {
-    case tableMenu[0] : // Delete employee
-      if (listEmployees()) {
-        let id = await doPrompt("number", "Enter employee ID to delete:");
-        id = parseInt(id.data);
-        
-        if (!isNaN(id)) {
-          connection.query("DELETE FROM employee WHERE id=?;", [id], function(err, result) {
-            if (err) throw err;
-            if (result.affectedRows > 0) {
-              console.log("Deleted employee " + id);
-              // TODO: error check that this employee was not a manager
-            }
-            else {
-              console.log("Employee ID " + id + " not found.");
-            };
-          });
-        }
-        else {
-          console.log(id + " is not a valid employee ID.");
-        };
-      }
-      else {
-        console.log("Unable to retrieve list of employees at this time.");
-      };
-      break;
-    case tableMenu[1] : // Delete role
-      if (listRoles()) {
-        let id = await doPrompt("number", "Enter role ID to delete:");
-        id = parseInt(id.data);
-        
-        if (!isNaN(id)) {
-          connection.query("DELETE FROM role WHERE id=?;", [id], function(err, result) {
-            if (err) throw err;
-            if (result.affectedRows > 0) {
-              console.log("Deleted role " + id);
-              // TODO: error check that this role not in use
-            }
-            else {
-              console.log("Role ID " + id + " not found.");
-            };
-          });
-        }
-        else {
-          console.log(id + " is not a valid role ID.");
-        };
-      }
-      else {
-        console.log("Unable to retrieve list of roles at this time.");
-      };
-      break;
-    case tableMenu[2] : // Delete department
       if (listDepts()) {
-        let id = await doPrompt("number", "Enter department ID to delete:");
+        let id = await doPrompt("number", "Enter department ID to update:");
         id = parseInt(id.data);
         
         if (!isNaN(id)) {
-          connection.query("DELETE FROM department WHERE id=?;", [id], function(err, result) {
+          connection.query("SELECT * FROM department WHERE id=?;", [id], async function(err,res) {
             if (err) throw err;
-            if (result.affectedRows > 0) {
-              console.log("Deleted department " + id);
-              // TODO: error check that this department not in use
+            let name = await doPrompt("input", "What is the department name?", null, res[0].name);
+            name = name.data.trim();
+            if (name === "") {
+              console.log("Department name cannot be blank.");
+            }
+            else if (listEmployees("", empListQuery)) {
+              let manager_id = await doPrompt("number", "What is the manager ID for this role?", null, res[0].manager_id);
+              manager_id = parseInt(manager_id.data);
+
+              if (!isNaN(manager_id)) {
+                connection.query("UPDATE department SET name=?, manager_id=? WHERE id=?;", 
+                  [name, manager_id, id], function(err, result) {
+                  if (err) throw err;
+                  console.log("Updated " + name);
+                });
+              }
+              else {
+                console.log(manager_id + " is not a valid manager ID.");
+              };
             }
             else {
-              console.log("Department ID " + id + " not found.");
+              console.log("Cannot retrieve list of employees at this time.");
             };
           });
         }
@@ -485,34 +405,79 @@ async function removeItems(table) {
         };
       }
       else {
+        console.log("Cannot retrieve list of departments at this time.");
+      };
+      break;
+  };  // No need for default - do nothing if selected 'Back'
+  return null
+};
+
+// Deletes items from tables
+async function removeItems(table) {
+
+  // Reuse code for deleting from all tables
+  async function doDelete(tableName) {
+    let id = await doPrompt("number", `Enter ${tableName} ID to delete:`);
+    id = parseInt(id.data);
+    
+    if (!isNaN(id)) {
+      connection.query("DELETE FROM ?? WHERE id=?;", [tableName, id], function(err, result) {
+        if (err) throw err;
+        if (result.affectedRows > 0) {
+          console.log("Deleted " + tableName + " " + id + ".");
+          // TODO: error check that there are no dependency issues
+        }
+        else {
+          console.log("ID " + id + " " + tableName + " not found.");
+        };
+      });
+    }
+    else {
+      console.log(id + " is not a valid " + tableName + " ID.");
+    };
+  };
+
+  switch (table) {
+    case tableMenu[0] : // Delete employee
+      if (listEmployees("", empListQuery)) {
+        await doDelete("employee");
+      }
+      else {
+        console.log("Unable to retrieve list of employees at this time.");
+      };
+      break;
+    case tableMenu[1] : // Delete role
+      if (listRoles()) {
+        await doDelete("role");
+      }
+      else {
+        console.log("Unable to retrieve list of roles at this time.");
+      };
+      break;
+    case tableMenu[2] : // Delete department
+      if (listDepts()) {
+        await doDelete("department");
+      }
+      else {
         console.log("Unable to retrieve list of departments at this time.");
       };
       break;
-  };
+  };  // No need for default - do nothing if selected 'Back'
   return null
 };
 
 // Displays list of employees for selection purposes
-async function listEmployees() {
-  const empListQuery = `SELECT employee.id, employee.last_name, employee.first_name FROM employee 
-    ORDER BY last_name, first_name;`;
-
-  connection.query(empListQuery, function(err,res) {
+async function listEmployees(title, query) {
+  connection.query(query, function(err,res) {
     if (err) throw err;
-    console.table("\n Employees", res);
+    console.table("\n Employees " + title, res);
     return res;
   });
 };
 
 // Displays list of roles for selection purposes
 async function listRoles() {
-  const roleListQuery = `SELECT role.id, department.name, role.title, employee.last_name, employee.first_name
-    FROM role
-    LEFT JOIN department ON role.department_id=department.id
-    LEFT JOIN employee ON department.manager_id=employee.id
-    ORDER BY department.name, role.title;`;
-
-  connection.query(roleListQuery, async function(err,res) {
+  connection.query(roleQuery, async function(err,res) {
     if (err) throw err;
     console.table("\n Roles", res);
     return res;
@@ -521,13 +486,7 @@ async function listRoles() {
 
 // Displays list of departments for selection purposes
 async function listDepts() {
-  const deptListQuery = `SELECT department.id AS 'ID',
-    department.name AS 'Name',
-    IFNULL(CONCAT(employee.last_name, ', ', employee.first_name), '') AS 'Manager'
-    FROM department
-    LEFT JOIN employee ON department.manager_id=employee.id;`;
-
-  connection.query(deptListQuery, async function(err,res) {
+  connection.query(deptQuery, async function(err,res) {
     if (err) throw err;
     console.table("\n Departments", res);
     return res;
