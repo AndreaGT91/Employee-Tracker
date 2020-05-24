@@ -37,3 +37,13 @@ ORDER BY department.name;
 SELECT employee.id AS 'ID', employee.last_name AS 'Last Name', employee.first_name AS 'First Name' 
 FROM employee 
 ORDER BY last_name, first_name;
+
+-- Query to find personnel budget for each department
+SELECT department.name AS 'Department', COUNT(employee.id) AS '# Employees', 
+	LPAD(CONCAT('$', FORMAT(SUM(role.salary), 2)), 12, ' ') AS 'Personnel Budget'
+FROM department
+LEFT JOIN role ON department.id=role.department_id
+LEFT JOIN employee ON role.id=employee.role_id
+WHERE employee.id IS NOT NULL
+GROUP BY department.id
+ORDER BY department.name;

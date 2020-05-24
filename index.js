@@ -44,6 +44,15 @@ const deptQuery = `SELECT department.id AS 'ID', department.name AS 'Name',
   FROM department
   LEFT JOIN employee ON department.manager_id=employee.id
   ORDER BY department.name;`;
+
+const budgetQuery = `SELECT department.name AS 'Department', COUNT(employee.id) AS '# Employees', 
+    LPAD(CONCAT('$', FORMAT(SUM(role.salary), 2)), 12, ' ') AS 'Personnel Budget'
+  FROM department
+  LEFT JOIN role ON department.id=role.department_id
+  LEFT JOIN employee ON role.id=employee.role_id
+  WHERE employee.id IS NOT NULL
+  GROUP BY department.id
+  ORDER BY department.name;`;
   
 // create the connection information for the sql database
 const connection = mysql.createConnection({
@@ -124,11 +133,13 @@ async function queryUser() {
 // Displays the various reports
 async function viewItems(table) {
   const viewMenu = ["Employees By ID", "Employees By Name", "Employees By Department", "Employees By Manager", "Back"];
+  const deptMenu = ["Department List With Manager", "Department List With Personnel Budget", "Back"];
   let result = null;
+  let choice = null;
 
   switch (table) {
     case tableMenu[0] : // Employee
-      let choice = await doPrompt("list", "Which employee report would you like?", viewMenu);
+      choice = await doPrompt("list", "Which employee report would you like?", viewMenu);
       // Check to see if they picked 'Back'
       if (choice.data != viewMenu[viewMenu.length-1]) {
         switch (choice.data) {
@@ -151,7 +162,18 @@ async function viewItems(table) {
       result = listRoles();
       break;
     case tableMenu[2] : // Department
-      result = listDepts();
+      choice = await doPrompt("list", "Which department report would you like?", deptMenu);
+      // Check to see if they picked 'Back'
+      if (choice.data != deptMenu[deptMenu.length-1]) {
+        switch (choice.data) {
+          case deptMenu[0] : // With manager
+            result = listDepts();
+            break;
+          case deptMenu[1] : // With Personnel Budget
+            result = deptBudget();
+            break;
+        }; // No need for default - do nothing if selected 'Back'
+      };
       break;
   };  // No need for default - do nothing if selected 'Back'
   return result
@@ -489,6 +511,15 @@ async function listDepts() {
   connection.query(deptQuery, async function(err,res) {
     if (err) throw err;
     console.table("\n Departments", res);
+    return res;
+  });
+};
+
+// Displays list of departments with number of employees and total salary budget
+async function deptBudget() {
+  connection.query(budgetQuery, async function(err,res) {
+    if (err) throw err;
+    console.table("\n Personnel Budget By Department", res);
     return res;
   });
 };
